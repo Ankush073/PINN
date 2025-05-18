@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>PINN Prediction</title>
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 2em;
+        }
+        .input-section {
+            margin-bottom: 20px;
+        }
+        label {
+            display: inline-block;
+            width: 100px;
+        }
+    </style>
+</head>
+<body>
+    <h2>PINN Prediction vs Analytical Solution</h2>
+
+    <div class="input-section">
+        <label for="x">x (for slider view only):</label>
+        <input type="range" id="x" min="0" max="1" step="0.01" value="0.5" oninput="document.getElementById('x-val').innerText = this.value">
+        <span id="x-val">0.5</span>
+    </div>
+
+    <div class="input-section">
+        <label for="t">Time t:</label>
+        <input type="text" id="t" placeholder="Enter float value (e.g. 0.37)">
+    </div>
+
+    <button onclick="makePrediction()">Predict</button>
+
+    <div id="plot" style="width: 100%; height: 500px; margin-top: 30px;"></div>
+
+    <script>
+        function analyticalSolution(x, t) {
+            return 6 * x * (1 - x) * Math.exp(-t);
+        }
+
+        async function makePrediction() {
+            const t = parseFloat(document.getElementById("t").value);
+            if (isNaN(t)) {
+                alert("Please enter a valid float value for t.");
+                return;
+            }
+
+            const x_vals = Array.from({length: 100}, (_, i) => i / 99);
+            const t_vals = Array(100).fill(t);
+
+            const response = await fetch("/predict", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({
+                    x: x_vals,
+                    t: t_vals
+                })
+            });
+
+            const data = await response.json();
+            if (data.error) {
+                alert("Prediction failed: " + data.error);
+                return;
+            }
+
+            const y_pred = data.predictions.map(p => p[0]);
+            const y_analytical = x_vals.map(x => analyticalSolution(x, t));
+
+            const trace1 = {
+                x: x_vals,
+                y: y_pred,
+                mode: 'lines',
+                name: `Model: t=${t.toFixed(2)}`,
+                line: { color: 'blue' }
+            };
+
+            const trace2 = {
+                x: x_vals,
+                y: y_analytical,
+                mode: 'lines',
+                name: `Analytical: t=${t.toFixed(2)}`,
+                line: { dash: 'dash', color: 'red' }
+            };
+
+            const layout = {
+                title: `u(x, t) vs x for t = ${t.toFixed(2)}`,
+                xaxis: { title: 'x' },
+                yaxis: { title: 'u(x, t)' }
+            };
+
+            Plotly.newPlot("plot", [trace1, trace2], layout);
+        }
+    </script>
+</body>
+</html>
